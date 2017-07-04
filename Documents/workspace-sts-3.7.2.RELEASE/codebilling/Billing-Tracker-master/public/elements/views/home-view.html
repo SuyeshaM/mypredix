@@ -1,0 +1,240 @@
+<link rel="import" href="../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/px-view-header/px-view-header.html">
+<link rel="import" href="../../bower_components/px-card/px-card.html">
+<link rel="import" href="../../bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="../../bower_components/px-data-table/px-data-table.html"/>
+<link rel="import" href="../../bower_components/px-vis-pie-chart/px-vis-pie-chart.html"/>
+<link rel="import" href="../../bower_components/px-dropdown/px-dropdown.html"/>
+<link rel="import" href="../../bower_components/px-simple-horizontal-bar-chart/px-simple-horizontal-bar-chart.html"/>
+<link rel="import" href="home-view-styles.html"/>
+
+<dom-module id="home-view">
+  <template>
+      <style include="home-view-styles"></style>
+      <iron-ajax id="dataReq"
+        url="/manager"
+        handle-as="json"
+        on-response="handleempDataResponse"
+        last-response="{{emp_data}}">
+      </iron-ajax>
+
+      <iron-ajax id="managerReq"
+        url="/managerselect"
+        handle-as="json"
+        on-response="handleDataResponse"
+        last-response="{{items}}">
+      </iron-ajax>
+
+
+
+      <div class="layout">
+        <div class="layout__item">
+        <px-dropdown display-value="Select">
+          <px-dropdown-content 
+            extend-dropdown='true' extend-dropdown-by='25' 
+            max-cont-character-width='10' 
+            items='{{items}}'>
+          </px-dropdown-content>
+        </px-dropdown>
+        </div>
+      </div>
+      <br><br>
+      
+      <div class="layout">
+        <div class="layout__item u-2/3" id="table" style="display:none">
+          <px-data-table striped="true" sortable="true" show-column-chooser="true" table-columns="true" id = "data_table" table-rows="true"   table-data='{{edata}}'>
+            <px-data-table-column name="Employee Name"></px-data-table-column>
+            <px-data-table-column name="Band"></px-data-table-column>
+            <px-data-table-column name="Project Name"></px-data-table-column>
+            <px-data-table-column name="Finally Monthly Billing">
+            <px-data-table-highlight 
+              highlight-type="row"
+              highlight-value="high" 
+              highlight-method="isUnbilled" 
+              import="../../bower_components/px-data-table/px-example-highlight.html">
+            </px-data-table-highlight>
+            </px-data-table-column>
+          </px-data-table>
+        </div>
+        </div>
+        <br><br>
+        <div class="layout">
+        <div class="layout__item u-1/3" id="chart" style="display:none">
+          <px-vis-pie-chart 
+            prevent-resize="true" 
+            width="200" 
+            height="200"
+            chart-horizontal-alignment="center" 
+            chart-vertical-alignment="center" 
+            margin='{"top":"20","bottom":"20","left":"30","right":"20"}' 
+            register-config='{"type":"vertical","width":100}' 
+            chart-data={{chartdata}}
+            series-config='{"mySerie":{"xAxisUnit":"%","y":"y","x":"x"}}' 
+            preserve-data-order="true" 
+            title="Billing Efficiency" 
+            title-spacing="5"
+            use-percentage="false"
+            donut="true"
+            dynamic-menu-config='[{"name":"Log message","action":"function(data) {console.log(\"logging message\")}","eventName":"delete","icon":"fa-trash"}]'>
+          </px-vis-pie-chart>
+        </div>
+
+
+        <div class="layout__item u-1/3" id="bar" style="display:none">
+          <px-simple-horizontal-bar-chart 
+            width="300" 
+            height="200" 
+            bar-labels="values" 
+            legend-labels='["<30 days","30-90 days",">90 days"]' 
+            chart-data={{bardata}}>
+          </px-simple-horizontal-bar-chart><br>
+        </div>
+      </div>
+  </template>
+
+  <script>
+    var emp_data = [];
+    var filter;
+    var today = new Date();
+    Polymer({
+      is: 'home-view',
+
+      listeners:
+      {
+        'px-dropdown-value-changed': 'dropdownSelected',
+      },
+      properties: 
+      {
+        edata: {
+          type: Array,
+          notify:true,
+          value:[]
+        },
+        chartdata: {},
+        bardata: {}
+      },
+      dropdownSelected: function(manager)
+      {
+        console.log(manager.detail.val);
+        filter = manager.detail.val;
+        this.$.dataReq.generateRequest();
+      },
+      ready: function() {
+        console.log("about view ready");
+        this.$.managerReq.generateRequest();
+      },
+      handleDataResponse: function(res) 
+      {
+        console.log("Data Received!");
+      },
+      handleempDataResponse: function(res) 
+      {
+        emp_data = res.detail.response;
+        var data = [];
+        console.log("Data Received!");
+        var billed=0,unbilled=0;
+        var slot30=0,slot60=0,slot90=0;
+        // res.detail.response;
+        for (var i=0;i<emp_data.length;i++)
+        {
+          if(emp_data[i].Manager == filter)
+          {
+            data.push(emp_data[i]);
+            var date = new Date(emp_data[i]['Allocation End Date']);
+            var timediff = Math.abs(date.getTime() - today.getTime());
+            var daydiff = Math.ceil(timediff / (1000 * 3600 * 24));
+            if(daydiff < 30)
+            {
+              slot30++;
+            }
+            else if(daydiff>30 && daydiff <90)
+            {
+              slot60++;
+            }
+            else if(daydiff>90)
+            {
+              slot90++;
+            }
+
+
+
+
+
+            if(emp_data[i].Band == "PB")
+            {
+              if(emp_data[i]['Billing($/month)']<2958)
+              {
+                unbilled = unbilled+2958;
+              }
+              else
+              {
+                billed = billed+2958;
+              }
+            }
+            else if(emp_data[i].Band == "LPB")
+            {
+              if(emp_data[i]['Billing($/month)']<5208)
+              {
+                unbilled = unbilled+5208;
+              }
+              else
+              {
+                billed = billed+5208;
+              }
+            }
+            else if(emp_data[i].Band == "SPB")
+            {
+              if(emp_data[i]['Billing($/month)']<7708)
+              {
+                unbilled = unbilled+7708;
+              }
+              else
+              {
+                billed = billed+7708;
+              }
+            }
+          }
+        }
+        
+        var billpercent = (billed/(billed+unbilled))*100;
+        if(isNaN(billpercent))
+        {
+          billpercent = 0;
+        }
+        var unbillpercent = 100-billpercent;
+        console.log(billpercent);
+        console.log(slot30+' '+slot60+' '+slot90);
+        var chart = 
+        [
+          {
+            "percentage":billpercent,
+            "x":billed,
+            "y":"Billed",
+            "colorIndex":0,
+            "backgroundColor":"rgb(93,165,218)"
+          },
+            {"percentage":unbillpercent,
+            "x":unbilled,
+            "y":"Unbilled",
+            "colorIndex":1,
+            "backgroundColor":"rgb(250,164,58)"
+          }
+        ]
+        var bar = 
+        [
+          slot30,
+          slot60,
+          slot90
+        ];     
+        this.set('edata',data);
+        this.set('chartdata',chart);
+        this.set('bardata',bar);
+        this.$.table.style.display = "block";
+        this.$.chart.style.display = "block";
+        this.$.bar.style.display   = "block";
+        console.log(data);
+
+      }
+    });
+  </script>
+</dom-module>
